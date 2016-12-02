@@ -1,5 +1,10 @@
 package com.def.plugins;
 
+
+import android.content.pm.PackageManager;
+import static android.Manifest.permission.READ_SMS;
+import org.apache.cordova.PluginResult;
+import org.apache.cordova.PluginResult.Status;
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
@@ -26,9 +31,19 @@ public class ReadSms extends CordovaPlugin {
     // Defaults:
     private static final Integer READ_ALL = -1;
 
+    // Permission request stuff.
+    private static final int READ_CALL_LOG_REQ_CODE = 0;
+    private static final String PERMISSION_DENIED_ERROR = "User refused to give permissions for reading call log";
+    // Exec arguments.
+     private CallbackContext callbackContext;
+     private JSONArray args;
+     private String action;
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
         Log.d(TAG, "Inside ReadSms plugin.");
+        this.action = action;
+        this.args = args;
+        this.callbackContext = callbackContext;
 
         JSONObject result = new JSONObject();
 
@@ -37,21 +52,52 @@ public class ReadSms extends CordovaPlugin {
             callbackContext.success(result);
             return false;
         }
-
-        String phoneNumber = args.getString(0);
-        result.put("phone_number", phoneNumber);
-
-        if (action.equals("") || action.equals(GET_TEXTS_ACTION)) {
-            return getTexts(args, callbackContext, result, phoneNumber);
-        } else if (action.equals(GET_TEXTS_AFTER)) {
-            return getTextsAfterTimeStamp(callbackContext, phoneNumber, args, result);
-        } else {
-            Log.e(TAG, "Unknown action provided.");
-            result.put("error", "Unknown action provided.");
-            callbackContext.success(result);
-            return false;
-        }
+          if (cordova.hasPermission(READ_SMS)) {
+                   String phoneNumber = args.getString(0);
+                          result.put("phone_number", phoneNumber);
+                          if (action.equals("") || action.equals(GET_TEXTS_ACTION)) {
+                              return getTexts(args, callbackContext, result, phoneNumber);
+                          } else if (action.equals(GET_TEXTS_AFTER)) {
+                              return getTextsAfterTimeStamp(callbackContext, phoneNumber, args, result);
+                          } else {
+                              Log.e(TAG, "Unknown action provided.");
+                              result.put("error", "Unknown action provided.");
+                              callbackContext.success(result);
+                              return false;
+                          }
+                } else {
+                    Log.d(TAG, "No permissions, will request");
+                    cordova.requestPermission(this, READ_CALL_LOG_REQ_CODE,READ_SMS);
+                    return false;
+                }
     }
+
+
+
+    public void onRequestPermissionResult(int requestCode, String[] permissions,int[] grantResults) throws JSONException {
+            for (int r : grantResults) {
+            if (r == PackageManager.PERMISSION_DENIED) {
+                Log.d(TAG, "Permission denied");
+                callbackContext.sendPluginResult(
+                        new PluginResult(PluginResult.Status.ERROR,
+                            PERMISSION_DENIED_ERROR));
+                return;
+            }
+         }                      JSONObject result = new JSONObject();
+                                String phoneNumber = args.getString(0);
+                                     result.put("phone_number", phoneNumber);
+                                     if (action.equals("") || action.equals(GET_TEXTS_ACTION)) {
+                                         getTexts(args, callbackContext, result, phoneNumber);
+                                     } else if (action.equals(GET_TEXTS_AFTER)) {
+                                       getTextsAfterTimeStamp(callbackContext, phoneNumber, args, result);
+                                     } else {
+
+                                         Log.e(TAG, "Unknown action provided.");
+                                         result.put("error", "Unknown action provided.");
+                                         callbackContext.success(result);
+                                         return;
+                                     }
+      }
 
     private boolean getTextsAfterTimeStamp( CallbackContext callbackContext,
             String phoneNumber, JSONArray args,    JSONObject result) throws JSONException {
@@ -121,9 +167,8 @@ public class ReadSms extends CordovaPlugin {
 
         String sortOrder = "date DESC"
                 + ((numberOfTexts == READ_ALL) ? "" : " limit " + numberOfTexts);
-
-        Cursor cursor = contentResolver.query(Uri.parse("content://sms/inbox"), null,
-                "address=?", smsNo, sortOrder);
+        String[] projection = new String[]{"_id", "address", "person", "body", "date", "type"};
+        Cursor cursor = contentResolver.query(Uri.parse("content://sms"), projection,null, null, sortOrder);
 
         JSONArray results = new JSONArray();
         while (cursor.moveToNext()) {
@@ -131,6 +176,9 @@ public class ReadSms extends CordovaPlugin {
             try {
                 current.put("time_received", cursor.getString(cursor.getColumnIndex("date")));
                 current.put("message", cursor.getString(cursor.getColumnIndex("body")));
+                current.put("person", cursor.getString(cursor.getColumnIndex("person")));
+                current.put("type", cursor.getString(cursor.getColumnIndex("type")));
+                current.put("address", cursor.getString(cursor.getColumnIndex("address")));
                 Log.d(TAG, "time: " + cursor.getString(cursor.getColumnIndex("date"))
                         + " message: " + cursor.getString(cursor.getColumnIndex("body")));
             } catch (JSONException e) {
