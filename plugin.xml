@@ -25,7 +25,7 @@
 
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="ReadSms">
-                <param name="android-package" value="com.plugins.def.ReadSms"/>
+                <param name="android-package" value="com.def.plugins.ReadSms" />
             </feature>
         </config-file>
 
