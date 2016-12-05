@@ -1,4 +1,4 @@
-package com.def.plugins.sms;
+package com.dude.plugins.sms;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
