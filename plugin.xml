@@ -1,38 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        id="cordova-plugin-sms-history"
-        version="1.0.4">
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	id="cordova-plugin-sms-history"
+	version="1.0.6">
+      
+    <name>SMS</name>
+	<description>Cordova plugin to operate SMS, send/list/intercept/delete/restore</description>
+	<author>huyuqiong</author>
+	<license>MIT</license>
+	<keywords>sms,plugins</keywords>
 
-    <name>SmsHistory</name>
+	<engines>
+	    <engine name="cordova" version=">=3.0.0" />
+	</engines>
 
-    <description>
-        This plugin allows you to retrieve the phone's message history.
-    </description>
-
-    <license>MIT</license>
-
-    <engines>
-        <engine name="cordova" version=">=3.0.0"/>
-    </engines>
-
-    <js-module src="www/ReadSms.js" name="ReadSms">
-        <clobbers target="window.plugins.readsms"/>
+    <js-module src="www/SMS.js" name="SMS">
+        <clobbers target="window.SMS" />
     </js-module>
 
     <!-- android -->
     <platform name="android">
-
         <config-file target="res/xml/config.xml" parent="/*">
-            <feature name="ReadSms">
-                <param name="android-package" value="com.def.plugins.ReadSms" />
+            <feature name="SMS">
+                <param name="android-package" value="com.dude.plugins.sms.SMSPlugin"/>
             </feature>
         </config-file>
-
-        <config-file target="AndroidManifest.xml" parent="/manifest">
-            <uses-permission android:name="android.permission.READ_SMS" />
-        </config-file>
-
-        <source-file src="src/com/plugins/ReadSms.java" target-dir="src/com/def/plugins"/>
+        
+        <config-file target="AndroidManifest.xml" parent="/*">
+		    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+			<uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+		    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+		    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
+		    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+		    <uses-permission android:name="android.permission.READ_SMS" />
+		    <uses-permission android:name="android.permission.WRITE_SMS" />
+		    <uses-permission android:name="android.permission.SEND_SMS" />
+          </config-file>
+          
+		<source-file src="src/android/SMSPlugin.java" target-dir="src/com/dude/plugins/sms"/>
     </platform>
+
 </plugin>
