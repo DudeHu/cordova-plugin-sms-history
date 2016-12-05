@@ -28,10 +28,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.content.pm.PackageManager;
+import static android.Manifest.permission.READ_SMS;
+
 public class SMSPlugin
 extends CordovaPlugin {
     private static final String LOGTAG = "SMSPlugin";
-    
+
     public static final String ACTION_SET_OPTIONS = "setOptions";
     private static final String ACTION_START_WATCH = "startWatch";
     private static final String ACTION_STOP_WATCH = "stopWatch";
@@ -40,13 +43,13 @@ extends CordovaPlugin {
     private static final String ACTION_DELETE_SMS = "deleteSMS";
     private static final String ACTION_RESTORE_SMS = "restoreSMS";
     private static final String ACTION_SEND_SMS = "sendSMS";
-    
+
     public static final String OPT_LICENSE = "license";
     private static final String SEND_SMS_ACTION = "SENT_SMS_ACTION";
     private static final String DELIVERED_SMS_ACTION = "DELIVERED_SMS_ACTION";
     private static final String SMS_RECEIVED = "android.provider.Telephony.SMS_RECEIVED";
     public static final String SMS_EXTRA_NAME = "pdus";
-    
+
     public static final String SMS_URI_ALL = "content://sms/";
     public static final String SMS_URI_INBOX = "content://sms/inbox";
     public static final String SMS_URI_SEND = "content://sms/sent";
@@ -54,7 +57,7 @@ extends CordovaPlugin {
     public static final String SMS_URI_OUTBOX = "content://sms/outbox";
     public static final String SMS_URI_FAILED = "content://sms/failed";
     public static final String SMS_URI_QUEUED = "content://sms/queued";
-    
+
     public static final String BOX = "box";
     public static final String ADDRESS = "address";
     public static final String BODY = "body";
@@ -68,60 +71,102 @@ extends CordovaPlugin {
     public static final String REPLY_PATH_PRESENT = "reply_path_present";
     public static final String TYPE = "type";
     public static final String PROTOCOL = "protocol";
-    
+
     public static final int MESSAGE_TYPE_INBOX = 1;
     public static final int MESSAGE_TYPE_SENT = 2;
     public static final int MESSAGE_IS_NOT_READ = 0;
     public static final int MESSAGE_IS_READ = 1;
     public static final int MESSAGE_IS_NOT_SEEN = 0;
     public static final int MESSAGE_IS_SEEN = 1;
-    
+
     private static final String SMS_GENERAL_ERROR = "SMS_GENERAL_ERROR";
     private static final String NO_SMS_SERVICE_AVAILABLE = "NO_SMS_SERVICE_AVAILABLE";
     private static final String SMS_FEATURE_NOT_SUPPORTED = "SMS_FEATURE_NOT_SUPPORTED";
     private static final String SENDING_SMS_ID = "SENDING_SMS";
-    
+
     private ContentObserver mObserver = null;
     private BroadcastReceiver mReceiver = null;
     private boolean mIntercept = false;
     private String lastFrom = "";
     private String lastContent = "";
 
+
+ // Permission request stuff.
+    private static final int READ_SMS_REQ_CODE = 0;
+    private static final String PERMISSION_DENIED_ERROR =
+        "User refused to give permissions for reading call log";
+    // Exec arguments.
+    private CallbackContext callbackContext;
+    private JSONArray inputs;
+    private String action;
+
+    public static final String READ_SMS = android.Manifest.permission.READ_SMS;
+
     public boolean execute(String action, JSONArray inputs, CallbackContext callbackContext) throws JSONException {
-        PluginResult result = null;
-        if (ACTION_SET_OPTIONS.equals(action)) {
-            JSONObject options = inputs.optJSONObject(0);
-            this.setOptions(options);
-            result = new PluginResult(PluginResult.Status.OK);
-        } else if (ACTION_START_WATCH.equals(action)) {
-            result = this.startWatch(callbackContext);
-        } else if (ACTION_STOP_WATCH.equals(action)) {
-            result = this.stopWatch(callbackContext);
-        } else if (ACTION_ENABLE_INTERCEPT.equals(action)) {
-            boolean on_off = inputs.optBoolean(0);
-            result = this.enableIntercept(on_off, callbackContext);
-        } else if (ACTION_DELETE_SMS.equals(action)) {
-            JSONObject msg = inputs.optJSONObject(0);
-            result = this.deleteSMS(msg, callbackContext);
-        } else if (ACTION_RESTORE_SMS.equals(action)) {
-            JSONArray smsList = inputs.optJSONArray(0);
-            result = this.restoreSMS(smsList, callbackContext);
-        } else if (ACTION_LIST_SMS.equals(action)) {
-            JSONObject filters = inputs.optJSONObject(0);
-            result = this.listSMS(filters, callbackContext);
-        } else if (ACTION_SEND_SMS.equals(action)) {
-            JSONArray addressList = inputs.optJSONArray(0);
-            String message = inputs.optString(1);
-            result = this.sendSMS(addressList, message, callbackContext);
-        } else {
-            Log.d(LOGTAG, String.format("Invalid action passed: %s", action));
-            result = new PluginResult(PluginResult.Status.INVALID_ACTION);
-        }
-        if (result != null) {
-            callbackContext.sendPluginResult(result);
-        }
+                this.action = action;
+                this.inputs = inputs;
+                this.callbackContext = callbackContext;
+
+                if (cordova.hasPermission(READ_SMS)) {
+                    Log.d(LOGTAG, "Permission available");
+                    executeHelper();
+                } else {
+                    Log.d(LOGTAG, "No permissions, will request");
+                    cordova.requestPermission(this, READ_SMS_REQ_CODE,
+                            READ_SMS);
+                }
         return true;
     }
+
+    private void executeHelper(){
+        PluginResult result = null;
+                if (ACTION_SET_OPTIONS.equals(action)) {
+                    JSONObject options = inputs.optJSONObject(0);
+                    this.setOptions(options);
+                    result = new PluginResult(PluginResult.Status.OK);
+                } else if (ACTION_START_WATCH.equals(action)) {
+                    result = this.startWatch(callbackContext);
+                } else if (ACTION_STOP_WATCH.equals(action)) {
+                    result = this.stopWatch(callbackContext);
+                } else if (ACTION_ENABLE_INTERCEPT.equals(action)) {
+                    boolean on_off = inputs.optBoolean(0);
+                    result = this.enableIntercept(on_off, callbackContext);
+                } else if (ACTION_DELETE_SMS.equals(action)) {
+                    JSONObject msg = inputs.optJSONObject(0);
+                    result = this.deleteSMS(msg, callbackContext);
+                } else if (ACTION_RESTORE_SMS.equals(action)) {
+                    JSONArray smsList = inputs.optJSONArray(0);
+                    result = this.restoreSMS(smsList, callbackContext);
+                } else if (ACTION_LIST_SMS.equals(action)) {
+                    JSONObject filters = inputs.optJSONObject(0);
+                    result = this.listSMS(filters, callbackContext);
+                } else if (ACTION_SEND_SMS.equals(action)) {
+                    JSONArray addressList = inputs.optJSONArray(0);
+                    String message = inputs.optString(1);
+                    result = this.sendSMS(addressList, message, callbackContext);
+                } else {
+                    Log.d(LOGTAG, String.format("Invalid action passed: %s", action));
+                    result = new PluginResult(PluginResult.Status.INVALID_ACTION);
+                }
+                if (result != null) {
+                    callbackContext.sendPluginResult(result);
+                }
+    }
+
+     public void onRequestPermissionResult(
+                int requestCode, String[] permissions,
+                int[] grantResults) throws JSONException {
+            for (int r : grantResults) {
+                if (r == PackageManager.PERMISSION_DENIED) {
+                    Log.d(LOGTAG, "Permission denied");
+                    callbackContext.sendPluginResult(
+                            new PluginResult(PluginResult.Status.ERROR,
+                                PERMISSION_DENIED_ERROR));
+                    return;
+                }
+            }
+            executeHelper();
+      }
 
     public void onDestroy() {
         this.stopWatch(null);
@@ -236,6 +281,7 @@ extends CordovaPlugin {
         String faddress = filter.optString(ADDRESS);
         String fcontent = filter.optString(BODY);
 
+        boolean allCount = filter.has("allCount") ? filter.has("allCount") : false;
         int indexFrom = filter.has("indexFrom") ? filter.optInt("indexFrom") : 0;
         int maxCount = filter.has("maxCount") ? filter.optInt("maxCount") : 10;
         JSONArray jsons = new JSONArray();
@@ -258,9 +304,10 @@ extends CordovaPlugin {
                 matchFilter = true;
             }
             if (! matchFilter) continue;
-            
+
             if (i < indexFrom) continue;
-            if (i >= indexFrom + maxCount) break;
+            if(!allCount)
+                if (i >= indexFrom + maxCount) break;
             ++i;
 
             if ((json = this.getJsonFromCursor(cur)) == null) {
@@ -277,7 +324,7 @@ extends CordovaPlugin {
 
     private JSONObject getJsonFromCursor(Cursor cur) {
 		JSONObject json = new JSONObject();
-		
+
 		int nCol = cur.getColumnCount();
 		String keys[] = cur.getColumnNames();
 
@@ -311,7 +358,7 @@ extends CordovaPlugin {
     private void fireEvent(final String event, JSONObject json) {
     	final String str = json.toString();
     	Log.d(LOGTAG, "Event: " + event + ", " + str);
-    	
+
         cordova.getActivity().runOnUiThread(new Runnable(){
             @Override
             public void run() {
@@ -320,7 +367,7 @@ extends CordovaPlugin {
             }
         });
     }
-    
+
     private void onSMSArrive(JSONObject json) {
         String from = json.optString(ADDRESS);
         String content = json.optString(BODY);
@@ -375,7 +422,7 @@ extends CordovaPlugin {
             }
 
             public void onChange(boolean selfChange, Uri uri) {
-                ContentResolver resolver = cordova.getActivity().getContentResolver(); 
+                ContentResolver resolver = cordova.getActivity().getContentResolver();
                 Log.d(LOGTAG, ("onChange, selfChange: " + selfChange + ", uri: " + (Object)uri));
                 int id = -1;
                 String str;
@@ -446,7 +493,7 @@ extends CordovaPlugin {
 
     private JSONObject getJsonFromSmsMessage(SmsMessage sms) {
     	JSONObject json = new JSONObject();
-    	
+
         try {
         	json.put( ADDRESS, sms.getOriginatingAddress() );
         	json.put( BODY, sms.getMessageBody() ); // May need sms.getMessageBody.toString()
@@ -457,14 +504,14 @@ extends CordovaPlugin {
         	json.put( STATUS, sms.getStatus() );
         	json.put( TYPE, MESSAGE_TYPE_INBOX );
         	json.put( SERVICE_CENTER, sms.getServiceCenterAddress());
-        	
-        } catch ( Exception e ) { 
-            e.printStackTrace(); 
+
+        } catch ( Exception e ) {
+            e.printStackTrace();
         }
 
     	return json;
     }
-    
+
     private ContentValues getContentValuesFromJson(JSONObject json) {
     	ContentValues values = new ContentValues();
     	values.put( ADDRESS, json.optString(ADDRESS) );
